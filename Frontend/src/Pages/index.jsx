@@ -1,0 +1,10 @@
+export { default as HomePage } from "./HomePage";
+export { default as About } from "./AboutPage";
+export { default as Dashboard } from "./Dashboard";
+export { default as Error } from "./Error";
+export { default as HomePageMinor } from "./HomePageMinor";
+export { default as LearnMore } from "./LearnMore";
+export { default as LoginPage } from "./LoginPage";
+export { default as Register } from "./RegisterPage";
+export { default as Logout } from "./Logout";
+export { default as PlayWithBot } from "./PlayWithBot";
