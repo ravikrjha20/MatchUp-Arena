@@ -29,9 +29,9 @@ const SearchResultsPage = () => {
   }, [searchTerm, searchUsers, clearSearchedUsers]);
 
   const handleUserClick = (user) => {
-    navigate(`/profile/${user.username || user._id}`);
+    clearSearchedUsers(); // 1️⃣ wipe results immediately
+    navigate(`/profile/${user.username || user._id}`); // 2️⃣ go to profile
   };
-
   return (
     <div className='container mx-auto p-4 md:p-8 bg-gray-900 text-white min-h-screen'>
       <h1 className='text-2xl font-bold mb-4'>Search Results</h1>

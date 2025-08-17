@@ -4,7 +4,7 @@ import useNotificationStore from "../store/useNotificationStore";
 import { toast } from "react-toastify";
 import { checkFriend } from "../utils/someCleanup";
 
-export const setupMatchHandlers = (socket, onMatchFound) => {
+export const setupInviteHandlers = (socket, onMatchFound) => {
   if (!socket) return;
   const {
     setOpponentInfo,
@@ -19,41 +19,6 @@ export const setupMatchHandlers = (socket, onMatchFound) => {
     rejectInvite,
   } = useMatchStore.getState();
   const { showNotification } = useNotificationStore.getState();
-  const handleMatchFound = ({
-    opponentId,
-    opponentName,
-    turn,
-    mark,
-    status,
-    opponentMark,
-  }) => {
-    console.log("🎯 Matched with:", opponentId, opponentName, turn);
-    toast.success(`Matched with ${opponentName || opponentId}`);
-    setOpponentInfo({
-      opponentId,
-      opponentName,
-      isFriend: checkFriend(opponentId),
-    });
-    setMatchStatus(status);
-    setTurn(turn);
-    setUserMark(mark);
-    setOpponentMark(opponentMark);
-    onMatchFound({ opponentId, opponentName });
-  };
-
-  const handleMatchTimeoutEvent = ({ message }) => {
-    const opponentId = "688fb9e04504c1887b00c156";
-    const opponentName = "ravi";
-    console.log("⌛ Matchmaking timed out:", opponentName, opponentId);
-    toast.error(message || "No opponent found in time.");
-  };
-
-  const handleGameMove = ({ userMask, opponentMask, turn, status }) => {
-    setMatchStatus(status);
-    setUserMask(userMask);
-    setOpponentMask(opponentMask);
-    setTurn(turn);
-  };
   const handleFriendInvite = (fromId, fromName) => {
     const message = `${fromName} is inviting you to play 1v1`;
     const type = "invitation";
@@ -63,12 +28,7 @@ export const setupMatchHandlers = (socket, onMatchFound) => {
       onReject: () => rejectInvite(fromId),
     });
   };
-
   socket.on("friendInvite", handleFriendInvite);
-  // Register the handlers
-  socket.on("matchFound", handleMatchFound);
-  socket.on("matchTimeout", handleMatchTimeoutEvent);
-  socket.on("gameMove", handleGameMove);
   // Return a cleanup function to remove listeners when the component unmounts
   return () => {
     socket.off("matchFound", handleMatchFound);

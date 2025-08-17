@@ -16,6 +16,8 @@ import OfflineBoard from "./component/OfflineBoard";
 import Profile from "./Pages/ProfilePage";
 import MatchmakingPage from "./Pages/Play/MatchMaking";
 import SearchResultsPage from "./Pages/SearchResultsPage";
+import GameBoard from "./Pages/PlayGround";
+import PlayWithFriendPage from "./Pages/Play/PlayWithFriend";
 
 // Create and export the router configuration
 const router = createBrowserRouter([
@@ -45,7 +47,7 @@ const router = createBrowserRouter([
       },
       {
         path: "1v1/friend/online",
-        element: <MatchmakingPage />, // Placeholder
+        element: <PlayWithFriendPage />, // Placeholder
         errorElement: <Error />,
       },
       {
@@ -55,7 +57,12 @@ const router = createBrowserRouter([
       },
       {
         path: "online/quick",
-        element: <About />, // Placeholder
+        element: <MatchmakingPage />, // Placeholder
+        errorElement: <Error />,
+      },
+      {
+        path: "online/quick/letsplay",
+        element: <GameBoard />, // Placeholder
         errorElement: <Error />,
       },
       {

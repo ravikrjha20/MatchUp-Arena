@@ -1,19 +1,29 @@
+const mongoose = require("mongoose");
 const User = require("../model/userModel");
 const UserFriend = require("../model/userFriends");
 const CustomError = require("../errors");
 const { StatusCodes } = require("http-status-codes");
-const { io, userSocketMap, getReceiverSocketId } = require("../db/socket");
+const { io } = require("../db/socket");
+const { getReceiverSocketId } = require("../db/storeSocket");
 
 /**
- * Send a friend request to another user
+ * Helper to emit safely (won't throw if offline)
  */
+const emitToUser = (userId, event) => {
+  const socketId = getReceiverSocketId(userId);
+  if (socketId) {
+    io.to(socketId).emit(event);
+  }
+};
+
 const sendRequest = async (req, res, next) => {
   try {
     const { userId } = req.user;
     const { friendId } = req.params;
 
-    if (userId === friendId)
+    if (userId === friendId) {
       throw new CustomError.BadRequestError("Cannot request yourself");
+    }
 
     const friend = await User.findById(friendId);
     if (!friend) throw new CustomError.NotFoundError("User not found");
@@ -26,8 +36,10 @@ const sendRequest = async (req, res, next) => {
 
     if (userNet.friends.some((f) => f.friendId.equals(friendId)))
       throw new CustomError.BadRequestError("Already friends");
+
     if (userNet.outgoingRequests.some((r) => r.friendId.equals(friendId)))
       throw new CustomError.BadRequestError("Already requested");
+
     if (userNet.incomingRequests.some((r) => r.friendId.equals(friendId)))
       throw new CustomError.BadRequestError("They already sent you a request");
 
@@ -37,15 +49,51 @@ const sendRequest = async (req, res, next) => {
     await userNet.save();
     await friendNet.save();
 
+    // Emit updates
+    emitToUser(friendId, "updateIncomingRequest");
+    emitToUser(userId, "updateOutgoingReq");
+
     res.status(StatusCodes.OK).json({ msg: "Request sent" });
   } catch (err) {
     next(err);
   }
 };
 
-/**
- * Accept a pending friend request
- */
+const cancelRequest = async (req, res, next) => {
+  try {
+    const { userId } = req.user;
+    const { friendId } = req.params;
+
+    const senderNet = await UserFriend.findOne({ userId });
+    const recipientNet = await UserFriend.findOne({ userId: friendId });
+
+    if (
+      !senderNet ||
+      !senderNet.outgoingRequests.some((r) => r.friendId.equals(friendId))
+    ) {
+      throw new CustomError.NotFoundError("Friend request not found.");
+    }
+
+    senderNet.outgoingRequests.pull({ friendId });
+    if (recipientNet) {
+      recipientNet.incomingRequests.pull({ friendId: userId });
+    }
+
+    await senderNet.save();
+    if (recipientNet) {
+      await recipientNet.save();
+    }
+
+    // Emit updates
+    emitToUser(friendId, "updateIncomingRequest");
+    emitToUser(userId, "updateOutgoingReq");
+
+    res.status(StatusCodes.OK).json({ msg: "Request canceled successfully" });
+  } catch (err) {
+    next(err);
+  }
+};
+
 const acceptRequest = async (req, res, next) => {
   try {
     const { userId } = req.user;
@@ -76,15 +124,16 @@ const acceptRequest = async (req, res, next) => {
     await userNet.save();
     await friendNet.save();
 
+    // Emit updates
+    emitToUser(userId, "updateFriendList");
+    emitToUser(friendId, "updateFriendList");
+
     res.status(StatusCodes.OK).json({ msg: "Friend request accepted" });
   } catch (err) {
     next(err);
   }
 };
 
-/**
- * Decline a pending friend request
- */
 const declineRequest = async (req, res, next) => {
   try {
     const { userId } = req.user;
@@ -112,20 +161,20 @@ const declineRequest = async (req, res, next) => {
     await userNet.save();
     await friendNet.save();
 
+    // Emit updates
+    emitToUser(userId, "updateIncomingRequest");
+    emitToUser(friendId, "updateOutgoingReq");
+
     res.status(StatusCodes.OK).json({ msg: "Friend request declined" });
   } catch (err) {
     next(err);
   }
 };
 
-/**
- * Remove a friend
- */
 const removeFriend = async (req, res, next) => {
   try {
     const { userId } = req.user;
     const { friendId } = req.params;
-
     const userNet = await UserFriend.findOne({ userId });
     const friendNet = await UserFriend.findOne({ userId: friendId });
 
@@ -142,22 +191,24 @@ const removeFriend = async (req, res, next) => {
     await userNet.save();
     await friendNet.save();
 
+    // Emit updates
+    emitToUser(userId, "friendRemoved");
+    emitToUser(friendId, "friendRemoved");
+
     res.status(StatusCodes.OK).json({ msg: "Friend removed" });
   } catch (err) {
     next(err);
   }
 };
 
-/**
- * Search users by query
- */ const searchUsers = async (req, res, next) => {
+const searchUsers = async (req, res, next) => {
   try {
-    const q = req.query.name || req.query.username || ""; // support both 'name' and 'username'
+    const q = req.query.name || req.query.username || "";
     if (!q) return res.json({ suggestions: [] });
 
     const users = await User.find({
       $or: [
-        { username: { $regex: q, $options: "i" } }, // case-insensitive partial match
+        { username: { $regex: q, $options: "i" } },
         { name: { $regex: q, $options: "i" } },
       ],
     })
@@ -165,7 +216,6 @@ const removeFriend = async (req, res, next) => {
       .limit(20)
       .lean();
 
-    // Remove any possible duplicates by _id just in case
     const seen = new Set();
     const uniqueUsers = users.filter((user) => {
       const idStr = user._id.toString();
@@ -174,25 +224,21 @@ const removeFriend = async (req, res, next) => {
       return true;
     });
 
-    res.status(200).json({ suggestions: uniqueUsers }); // wrap in { suggestions: [] } for clarity
+    res.status(200).json({ suggestions: uniqueUsers });
   } catch (err) {
     next(err);
   }
 };
 
-/**
- * Get current user's friends
- */
 const getUserProfile = async (req, res, next) => {
   try {
     const { username } = req.params;
-
     if (!username) {
       throw new CustomError.BadRequestError("Username is required");
     }
 
     const user = await User.findOne({ username }).select(
-      "username avatar rating wins losses draws coins createdAt"
+      "username avatar rating wins losses draws coins createdAt name"
     );
 
     if (!user) {
@@ -219,9 +265,6 @@ const getFriends = async (req, res, next) => {
   }
 };
 
-/**
- * Get incoming friend requests
- */
 const getIncomingRequests = async (req, res, next) => {
   try {
     const { userId } = req.user;
@@ -229,16 +272,13 @@ const getIncomingRequests = async (req, res, next) => {
       "incomingRequests.friendId",
       "name username image"
     );
-    if (!userNet) return res.json([]);
-    res.status(StatusCodes.OK).json(userNet.incomingRequests);
+    const requests = userNet ? userNet.incomingRequests : [];
+    res.status(StatusCodes.OK).json({ requests });
   } catch (err) {
     next(err);
   }
 };
 
-/**
- * Get outgoing friend requests
- */
 const getOutgoingRequests = async (req, res, next) => {
   try {
     const { userId } = req.user;
@@ -246,29 +286,23 @@ const getOutgoingRequests = async (req, res, next) => {
       "outgoingRequests.friendId",
       "name username image"
     );
-    if (!userNet) return res.json([]);
-    res.status(StatusCodes.OK).json(userNet.outgoingRequests);
+    res
+      .status(StatusCodes.OK)
+      .json({ requests: userNet ? userNet.outgoingRequests : [] });
   } catch (err) {
     next(err);
   }
 };
 
-/**
- * Get all friends (user document with full details)
- */ const getAllFriends = async (req, res, next) => {
+const getAllFriends = async (req, res, next) => {
   try {
     const { userId } = req.user;
-
     const userNet = await UserFriend.findOne({ userId }).populate(
       "friends.friendId",
-      "name username image isOnline" // ← only these fields are included
+      "name username image isOnline"
     );
-
-    if (!userNet) return res.status(StatusCodes.OK).json([]);
-
-    const fullFriends = userNet.friends.map((f) => f.friendId);
-
-    res.status(StatusCodes.OK).json(fullFriends);
+    const friends = userNet ? userNet.friends.map((f) => f.friendId) : [];
+    res.status(StatusCodes.OK).json({ friends });
   } catch (err) {
     next(err);
   }
@@ -285,4 +319,5 @@ module.exports = {
   getOutgoingRequests,
   getAllFriends,
   getUserProfile,
+  cancelRequest,
 };

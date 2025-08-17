@@ -39,15 +39,11 @@ const userFriendSchema = new mongoose.Schema({
     required: true,
     unique: true,
   },
-
-  // Final accepted friends
   friends: [friendStatsSchema],
-
-  // Requests sent by others (waiting for user's response)
   incomingRequests: [incomingRequestSchema],
-
-  // Requests this user has sent (pending or declined)
   outgoingRequests: [outgoingRequestSchema],
 });
+
+userFriendSchema.index({ userId: 1 });
 
 module.exports = mongoose.model("UserFriend", userFriendSchema);

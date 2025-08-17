@@ -101,7 +101,7 @@ export function hardMode(own, opp) {
     const key = `${nextOwn}-${nextOpp}-1`;
     const outcome = dp[key];
 
-    console.log("key: ", key, ", outcome: ", outcome);
+    // console.log("key: ", key, ", outcome: ", outcome);
 
     if (outcome === OUTCOME.WIN) return i;
     if (outcome === OUTCOME.DRAW) drawMoves.push(i);

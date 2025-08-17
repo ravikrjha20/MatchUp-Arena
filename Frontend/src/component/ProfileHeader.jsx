@@ -1,10 +1,10 @@
 // components/ProfileHeader.js
-
-import React from "react";
+import React, { useState, useEffect } from "react";
 import { FaUserCircle } from "react-icons/fa";
+import { Link } from "react-router-dom";
+
 import useAuthStore from "../store/useAuthStore";
 import useFriendStore from "../store/useFriendStore";
-import { Link } from "react-router-dom"; // For the Edit Profile button
 
 const ProfileHeader = ({ user, isMyProfile }) => {
   const { user: authUser } = useAuthStore();
@@ -18,21 +18,33 @@ const ProfileHeader = ({ user, isMyProfile }) => {
     removeFriend,
   } = useFriendStore();
 
-  // Determine the relationship status if it's not our own profile
-  const isFriend =
-    !isMyProfile && friends.some((friend) => friend._id === user?._id);
-  const hasSentRequest =
-    !isMyProfile &&
-    outgoingRequests.some((req) => req.recipient._id === user?._id);
-  const hasReceivedRequest =
-    !isMyProfile &&
-    incomingRequests.some((req) => req.sender._id === user?._id);
+  /* --- local state for relationship flags --- */
+  const [isFriend, setIsFriend] = useState(false);
+  const [hasSentRequest, setHasSentRequest] = useState(false);
+  const [hasReceivedRequest, setHasReceivedRequest] = useState(false);
 
+  /* --- sync flags whenever store data changes --- */
+  useEffect(() => {
+    const id = user?._id;
+    const notMe = !isMyProfile;
+
+    setIsFriend(notMe && friends.some((f) => f?._id === id));
+    setHasSentRequest(
+      notMe && outgoingRequests.some((r) => r?.friendId?._id === id)
+    );
+    setHasReceivedRequest(
+      notMe && incomingRequests.some((r) => r?.friendId?._id === id)
+    );
+  }, [friends, incomingRequests, outgoingRequests, user, isMyProfile]);
+  console.log(isFriend);
+
+  /* --- handlers --- */
   const handleSendRequest = () => sendRequest(user._id);
   const handleAcceptRequest = () => acceptRequest(user._id);
   const handleDeclineRequest = () => declineRequest(user._id);
   const handleRemoveFriend = () => removeFriend(user._id);
 
+  /* --- choose right action button(s) --- */
   const renderActionButtons = () => {
     if (isMyProfile) {
       return (
@@ -85,7 +97,7 @@ const ProfileHeader = ({ user, isMyProfile }) => {
       );
     }
 
-    // Default case: Not friends and no pending requests
+    // default: no friendship and no pending requests
     return (
       <button
         onClick={handleSendRequest}
@@ -96,9 +108,10 @@ const ProfileHeader = ({ user, isMyProfile }) => {
     );
   };
 
+  /* --- render --- */
   return (
     <div className='flex items-center justify-between gap-6 mb-8'>
-      {/* Left side: Avatar and User Info */}
+      {/* left: avatar & user info */}
       <div className='flex items-center gap-4'>
         {user?.avatar ? (
           <img
@@ -115,11 +128,8 @@ const ProfileHeader = ({ user, isMyProfile }) => {
         </div>
       </div>
 
-      {/* Right side: Action Buttons */}
-      <div className='flex-shrink-0'>
-        {/* Only render buttons if there is an authenticated user */}
-        {authUser && renderActionButtons()}
-      </div>
+      {/* right: action buttons */}
+      <div className='flex-shrink-0'>{authUser && renderActionButtons()}</div>
     </div>
   );
 };

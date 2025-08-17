@@ -36,14 +36,19 @@ const register = async (req, res) => {
 
   res.status(StatusCodes.CREATED).json({ user: safeUser });
 };
-
 const login = async (req, res) => {
-  const { email, password } = req.body;
-  if (!email || !password) {
-    throw new CustomError.BadRequestError("Please provide email and password");
+  const { identifier, password } = req.body; // 'identifier' can be email OR username
+  if (!identifier || !password) {
+    throw new CustomError.BadRequestError(
+      "Please provide email/username and password"
+    );
   }
 
-  const user = await User.findOne({ email });
+  // Search by either email OR username
+  const user = await User.findOne({
+    $or: [{ email: identifier }, { username: identifier }],
+  });
+
   if (!user) {
     throw new CustomError.UnauthenticatedError("Invalid credentials");
   }
@@ -61,12 +66,15 @@ const login = async (req, res) => {
 
   res.status(StatusCodes.OK).json({ user: safeUser });
 };
-
-const logout = async (req, res) => {
-  res.cookie("token", "logout", {
+const logout = (req, res) => {
+  const options = {
     httpOnly: true,
-    expires: new Date(Date.now() + 1000),
-  });
+    secure: process.env.NODE_ENV === "production",
+    signed: true,
+    path: "/",
+  };
+  res.clearCookie("accessToken", options);
+  res.clearCookie("refreshToken", options);
   res.status(StatusCodes.OK).json({ msg: "User logged out!" });
 };
 

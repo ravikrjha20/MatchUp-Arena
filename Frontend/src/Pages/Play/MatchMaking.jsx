@@ -1,4 +1,9 @@
-import React, { useState, useRef } from "react";
+import React, { useEffect } from "react";
+import { useNavigate } from "react-router-dom";
+import useMatchStore from "../../store/useMatchStore"; // Your Zustand store
+import { setupMatchHandlers } from "../../socket/matchHandlers"; // Your socket handlers
+import { getSocket } from "../../socket/socket"; // Assuming a socket context
+import useAuthStore from "../../store/useAuthStore"; // To get the current user's info
 
 function Spinner() {
   return (
@@ -24,37 +29,55 @@ function Spinner() {
 }
 
 export default function MatchmakingPage() {
-  const [status, setStatus] = useState("idle"); // idle | searching | found
-  const [opponent, setOpponent] = useState(null);
-  const timerRef = useRef();
+  const navigate = useNavigate();
+  const socket = getSocket();
+  const { user: authUser } = useAuthStore(); // Get logged-in user info
+
+  // Subscribe to the entire store or select specific states
+  const {
+    matchmakingStatus,
+    matchmakingMessage,
+    opponentName,
+    opponentId,
+    findPlayer,
+    cancelSearch,
+    resetMatch,
+  } = useMatchStore();
+
+  // Set up socket listeners when the component mounts
+  useEffect(() => {
+    const onMatchFound = ({ opponentId, opponentName }) => {
+      // You can add logic here to automatically navigate after a short delay
+      setTimeout(() => {
+        // The game start logic will now be in one place
+        handleStartGame({ opponentId, opponentName });
+      }, 2000);
+    };
+    if (socket) {
+      const cleanup = setupMatchHandlers(socket, onMatchFound);
+      return cleanup; // Cleanup listeners when component unmounts
+    }
+  }, [socket, navigate]);
+
+  const handleStartGame = ({ opponentId, opponentName }) => {
+    navigate(`/online/quick/letsplay`);
+  };
+
+  const handleCancelSearch = () => {
+    if (socket) {
+      // Emit the cancel event through the store action
+      cancelSearch(socket);
+    }
+  };
 
   const me = {
-    name: "You",
-    avatar: "https://api.dicebear.com/7.x/adventurer/svg?seed=YourName",
+    name: authUser?.username || "You",
+    avatar: `https://api.dicebear.com/7.x/adventurer/svg?seed=${authUser?._id}`,
   };
 
-  const mockFindOpponent = () => {
-    setStatus("searching");
-    timerRef.current = setTimeout(() => {
-      setStatus("found");
-      setOpponent({
-        name: "DexterBlue",
-        avatar: "https://api.dicebear.com/7.x/bottts/svg?seed=dexterblue",
-        rating: 1530,
-      });
-    }, 2500 + Math.random() * 2000); // simulating random matchmaking time
-  };
-
-  const handleCancel = () => {
-    setStatus("idle");
-    setOpponent(null);
-    if (timerRef.current) clearTimeout(timerRef.current);
-  };
-
-  const handleStartGame = () => {
-    // Plug into your real routing/game-start logic!
-    alert("Game starting!");
-  };
+  const opponentAvatar = `https://api.dicebear.com/7.x/bottts/svg?seed=${
+    opponentId || "Waiting"
+  }`;
 
   return (
     <div className='min-h-screen bg-gradient-to-br from-blue-50 to-blue-100 flex items-center justify-center px-4'>
@@ -70,7 +93,7 @@ export default function MatchmakingPage() {
             <img
               src={me.avatar}
               alt='you'
-              className='w-20 h-20 md:w-24 md:h-24 rounded-full border-4 border-blue-400 shadow-lg transition-transform duration-300'
+              className='w-20 h-20 md:w-24 md:h-24 rounded-full border-4 border-blue-400 shadow-lg'
             />
             <div className='font-semibold mt-2 text-blue-500 text-lg'>
               {me.name}
@@ -79,11 +102,11 @@ export default function MatchmakingPage() {
 
           {/* VS/Searching transition */}
           <div className='flex flex-col items-center'>
-            {status === "found" ? (
+            {matchmakingStatus === "success" ? (
               <div className='text-xl md:text-2xl font-bold text-green-500 animate-pulse'>
                 VS
               </div>
-            ) : status === "searching" ? (
+            ) : matchmakingStatus === "pending" ? (
               <Spinner />
             ) : (
               <div className='text-xl text-gray-400'>VS</div>
@@ -93,61 +116,56 @@ export default function MatchmakingPage() {
           {/* Opponent */}
           <div
             className={`flex flex-col items-center transition-all duration-700 ${
-              status === "found"
+              matchmakingStatus === "success"
                 ? "opacity-100 translate-y-0"
                 : "opacity-40 grayscale blur-sm translate-y-2"
             }`}
           >
             <img
-              src={
-                status === "found"
-                  ? opponent?.avatar
-                  : "https://api.dicebear.com/7.x/micah/svg?seed=Waiting"
-              }
+              src={opponentAvatar}
               alt='opponent'
               className='w-20 h-20 md:w-24 md:h-24 rounded-full border-4 border-gray-300 shadow-lg'
             />
             <div className='font-semibold mt-2 text-gray-500 text-lg'>
-              {status === "found" ? opponent?.name : "Searching..."}
+              {matchmakingStatus === "success" ? opponentName : "Searching..."}
             </div>
-            {status === "found" && (
-              <div className='text-xs text-gray-400 -mt-1'>{`Rating: ${opponent?.rating}`}</div>
-            )}
           </div>
         </div>
 
         {/* Find/Cancel/Play buttons */}
-        <div className='w-full flex flex-col items-center transition-all'>
-          {status === "idle" && (
+        <div className='w-full h-24 flex flex-col items-center transition-all'>
+          {matchmakingStatus === "idle" && (
             <button
               className='px-8 py-3 mb-3 rounded-full font-semibold text-xl bg-gradient-to-r from-blue-500 to-purple-500 text-white shadow-xl hover:scale-105 transition'
-              onClick={mockFindOpponent}
+              onClick={findPlayer}
             >
               Find Opponent
             </button>
           )}
-          {status === "searching" && (
+          {matchmakingStatus === "pending" && (
             <button
-              onClick={handleCancel}
+              onClick={handleCancelSearch}
               className='px-6 py-2 mb-3 rounded-full font-semibold text-base bg-gray-200 hover:bg-gray-300 text-gray-600 transition'
             >
               Cancel Search
             </button>
           )}
-          {status === "found" && (
-            <button
-              className='px-10 py-3 mt-2 rounded-full font-bold text-lg bg-gradient-to-r from-green-500 to-blue-500 text-white shadow-lg hover:scale-105 transition'
-              onClick={handleStartGame}
-            >
-              Start Game
-            </button>
-          )}
 
-          {/* Optionally show tip during searching */}
-          {status === "searching" && (
+          {/* Display matchmaking messages from the store */}
+          {(matchmakingStatus === "pending" ||
+            matchmakingStatus === "timeout" ||
+            matchmakingStatus === "error") && (
             <div className='mt-4 text-blue-400 animate-pulse'>
-              Looking for an opponent...
+              {matchmakingMessage || "Looking for an opponent..."}
             </div>
+          )}
+          {matchmakingStatus === "timeout" && (
+            <button
+              className='mt-4 px-8 py-3 mb-3 rounded-full font-semibold text-xl bg-gradient-to-r from-blue-500 to-purple-500 text-white shadow-xl hover:scale-105 transition'
+              onClick={() => resetMatch() && findPlayer()}
+            >
+              Try Again
+            </button>
           )}
         </div>
       </div>

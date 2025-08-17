@@ -30,6 +30,7 @@ const useAuthStore = create((set, get) => ({
     } catch (error) {
       console.error("Login error:", error);
       toast.error(error?.response?.data?.msg || "Login failed");
+      throw error;
     }
   },
 
@@ -45,6 +46,7 @@ const useAuthStore = create((set, get) => ({
     } catch (error) {
       console.error("Registration error:", error);
       toast.error(error?.response?.data?.msg || "Registration failed");
+      return false;
     }
   },
 
@@ -54,6 +56,7 @@ const useAuthStore = create((set, get) => ({
         withCredentials: true,
       });
       const user = res.data.user;
+
       set({ user });
       get().connectSocket(user._id);
     } catch (error) {

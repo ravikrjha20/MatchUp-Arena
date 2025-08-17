@@ -13,10 +13,6 @@ export const getNavData = (user) => [
         label: "About",
         path: "/about",
       },
-      {
-        label: "Profile",
-        path: `/profile/${user?.username || "null"}`,
-      },
     ],
   },
   {
@@ -72,6 +68,10 @@ export const getNavData = (user) => [
     authOnly: true,
     children: user
       ? [
+          {
+            label: "Profile",
+            path: `/profile/${user?.username || "null"}`,
+          },
           {
             label: "Settings",
             path: "/profile/settings",

@@ -14,9 +14,11 @@ const fileUpload = require(`express-fileupload`);
 //   api_key: process.env.CLOUD_API_KEY,
 //   api_secret: process.env.CLOUD_API_SECRET,
 // });
+const allowedOrigins = process.env.CLIENT_URLS.split(",");
+
 app.use(
   cors({
-    origin: "http://localhost:5173",
+    origin: allowedOrigins,
     credentials: true,
   })
 );
@@ -46,7 +48,11 @@ const start = async () => {
   try {
     await connectDB(process.env.MONGO_URI);
     console.log("🚀 Connection established ✅");
-    server.listen(port, console.log(`🚀 Server listening on port ${port} ✅`));
+    server.listen(
+      port,
+      "0.0.0.0",
+      console.log(`🚀 Server listening on port ${port} ✅`)
+    );
   } catch (error) {
     console.log(error);
   }

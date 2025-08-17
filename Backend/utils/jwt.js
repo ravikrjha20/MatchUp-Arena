@@ -1,19 +1,22 @@
 require("dotenv").config();
 const jwt = require("jsonwebtoken");
 
-const createJWT = ({ payload }) => {
-  console.log(process.env.JWT_LIFETIME);
-
-  const token = jwt.sign(payload, process.env.JWT_SECRET, {
-    expiresIn: process.env.JWT_LIFETIME,
-  });
-  return token;
+const createJWT = ({ payload, expiresIn }) => {
+  return jwt.sign(payload, process.env.JWT_SECRET, { expiresIn });
 };
 
-// user is the tokenUser actually
 const attachCookiesToResponse = ({ res, user, refreshToken }) => {
-  const accessTokenJWT = createJWT({ payload: { user } });
-  const refreshTokenJWT = createJWT({ payload: { user, refreshToken } });
+  // Short-lived access token (e.g., 15 minutes)
+  const accessTokenJWT = createJWT({
+    payload: { user },
+    expiresIn: process.env.JWT_LIFETIME || "15m",
+  });
+
+  // Long-lived refresh token (e.g., 30 days)
+  const refreshTokenJWT = createJWT({
+    payload: { user, refreshToken },
+    expiresIn: process.env.REFRESH_TOKEN_LIFETIME || "30d",
+  });
 
   const oneDay = 1000 * 60 * 60 * 24;
   const longerExp = 1000 * 60 * 60 * 24 * 30;

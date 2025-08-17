@@ -16,6 +16,7 @@ const {
   removeFriend,
   declineRequest,
   getUserProfile,
+  cancelRequest,
 } = require("../controllers/friendController");
 
 // ✅ Get a list of all friends of the logged-in user (full user details)
@@ -29,6 +30,7 @@ router.post("/accept/:friendId", authenticateUser, acceptRequest);
 
 // ⛔ TODO: Decline a friend request (controller not yet implemented)
 router.post("/decline/:friendId", authenticateUser, declineRequest);
+router.post("/cancelRequest/:friendId", authenticateUser, cancelRequest);
 
 // ✅ Remove a user from the current user's friend list
 router.delete("/remove/:friendId", authenticateUser, removeFriend);

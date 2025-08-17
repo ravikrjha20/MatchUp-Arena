@@ -10,7 +10,7 @@ import useAuthStore from "../store/useAuthStore";
 const LoginPage = () => {
   const { checkAuth, login } = useAuthStore();
   const [formData, setFormData] = useState({
-    email: "",
+    identifier: "", // changed from email to identifier
     password: "",
   });
   const navigate = useNavigate();
@@ -24,9 +24,13 @@ const LoginPage = () => {
 
   const submit = async (e) => {
     e.preventDefault();
-    login(formData);
-    checkAuth();
-    navigate("../");
+    try {
+      await login(formData); // Pass identifier & password
+      await checkAuth();
+      navigate("../");
+    } catch (err) {
+      toast.error(err.response?.data?.msg || "Login failed");
+    }
   };
 
   return (
@@ -42,14 +46,14 @@ const LoginPage = () => {
           <h2 className='text-3xl font-bold mb-4 text-center'>Welcome Back</h2>
           <form onSubmit={submit} className='space-y-5'>
             <div>
-              <label className='block mb-1 text-sm'>Email</label>
+              <label className='block mb-1 text-sm'>Email or Username</label>
               <input
-                type='email'
-                name='email'
+                type='text'
+                name='identifier'
                 required
                 className='w-full px-4 py-2 rounded bg-white/20 border border-white/30 placeholder-white/70 focus:ring-2 focus:ring-white text-white'
-                placeholder='you@example.com'
-                value={formData.email}
+                placeholder='you@example.com or yourusername'
+                value={formData.identifier}
                 onChange={handleChange}
               />
             </div>
