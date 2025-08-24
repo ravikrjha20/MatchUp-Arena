@@ -17,12 +17,22 @@ const {
   addPlayerToQueue,
 } = require("./storeSocket");
 
-const allowedOrigins = process.env.CLIENT_URLS.split(",");
+const allowedOrigins = process.env.CLIENT_URLS?.split(",") || [];
+
 const app = express();
 const server = http.createServer(app);
+
 const io = new Server(server, {
   cors: {
-    origin: allowedOrigins,
+    origin: function (origin, callback) {
+      // allow requests with no origin (like mobile apps or curl)
+      if (!origin || allowedOrigins.includes(origin)) {
+        callback(null, true);
+      } else {
+        callback(new Error("Not allowed by CORS: " + origin));
+      }
+    },
+    credentials: true, // if you use cookies/session
   },
 });
 
